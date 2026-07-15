@@ -5,12 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Panou Admin — Configurare Nunți</title>
 
+<!-- Fonturi premium -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
+<!-- Tailwind CSS via CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
+
+<!-- SheetJS (pentru procesare Excel/CSV) -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<!-- Lucide icons -->
 <script src="https://unpkg.com/lucide@latest"></script>
 
 <script>
@@ -59,6 +65,7 @@
       radial-gradient(circle at 100% 30%, rgba(201,138,151,0.06), transparent 45%);
   }
 
+  /* Fundal rețea (blueprint grid) pentru schița sălii */
   .blueprint-grid {
     background-color: #131A30;
     background-image:
@@ -322,7 +329,7 @@
 /* ============================================================
    AICI INSEREZI LINKUL COPIAT DE LA GOOGLE APPS SCRIPT!
    ============================================================ */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyWB0omkKQBiViK_bea7TkpUViKcslOB07YxcEc7YuS0St8sNbitcAozx-CH4Z1dBhNoA/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwnlHjYUTWZa5JxpNVIkSs7c7oxTM5uVvRavoPM67zcW6eZKn70wtz-cf-F5cfGXgaFBw/exec";
 
 const STORAGE_GUESTS = 'wedding_guests';
 const STORAGE_LAYOUT = 'wedding_map_layout';
@@ -869,7 +876,7 @@ document.getElementById('saveLayoutBtn').addEventListener('click', async () => {
     return; 
   }
 
-  showToast('Se salvează în Google Sheets...');
+  showToast('Se salvează securizat în Google Sheets...');
   
   // Salvăm oricum local ca rezervă de siguranță
   localStorage.setItem(STORAGE_GUESTS, JSON.stringify(guests));
@@ -882,29 +889,53 @@ document.getElementById('saveLayoutBtn').addEventListener('click', async () => {
   }
 
   try {
-    const payload = JSON.stringify({
-      action: "saveAdminData",
+    const payloadData = JSON.stringify({
       guests: guests,
       layout: mapLayout
     });
 
-    // Trimitem cu "no-cors" în caz că se accesează greșit, dar optimizat
-    const response = await fetch(GOOGLE_SCRIPT_URL, {
-      method: "POST",
-      mode: "no-cors", 
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: payload
-    });
+    const finalUrl = `${GOOGLE_SCRIPT_URL}?action=saveAdminData&payload=${encodeURIComponent(payloadData)}`;
 
-    document.getElementById('mapSaveState').textContent = `Sincronizat live la ${new Date().toLocaleTimeString()}`;
-    showToast('Datele au fost salvate live în Google Sheets!');
+    // Îndepărtăm eventualele script-uri vechi create anterior
+    const oldScript = document.getElementById('google-script-transport');
+    if (oldScript) {
+      document.body.removeChild(oldScript);
+    }
+
+    // Definim callback-ul în fereastră pentru a primi confirmarea din Apps Script
+    window.callback = (response) => {
+      if (response && response.success) {
+        document.getElementById('mapSaveState').textContent = `Sincronizat live la ${new Date().toLocaleTimeString()}`;
+        showToast('Datele au fost scrise cu succes în Google Sheets!');
+      } else {
+        document.getElementById('mapSaveState').textContent = 'Eroare la procesare server.';
+        showToast('Google Sheets a dat o eroare de procesare.', true);
+      }
+      
+      // Ștergem scriptul adăugat pentru curățarea DOM-ului
+      const scr = document.getElementById('google-script-transport');
+      if (scr) document.body.removeChild(scr);
+      delete window.callback;
+    };
+
+    // Creăm tag-ul script dinamic (Trimitere tip JSONP)
+    const script = document.createElement('script');
+    script.id = 'google-script-transport';
+    script.src = finalUrl;
+    
+    // În caz de eroare de rețea dură
+    script.onerror = () => {
+      document.getElementById('mapSaveState').textContent = 'Eroare rețea cloud.';
+      showToast('Eroare de conexiune la serverul Google.', true);
+      if (window.callback) delete window.callback;
+    };
+
+    document.body.appendChild(script);
 
   } catch (err) {
-    console.error("Eroare trimitere:", err);
+    console.error("Eroare:", err);
     document.getElementById('mapSaveState').textContent = 'Eroare la trimitere cloud.';
-    alert("Datele au fost salvate doar local. Verifică rețeaua sau codul Apps Script.");
+    alert("Datele s-au salvat doar local.");
   }
 });
 
