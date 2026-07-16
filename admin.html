@@ -5,11 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Panou Admin — Configurare Nunți</title>
 
-<!-- Fonturi premium -->
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
-
 <!-- Tailwind CSS via CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -47,9 +42,9 @@
           parchment: '#EFEAE0',
         },
         fontFamily: {
-          display: ['Fraunces', 'serif'],
-          sans: ['Inter', 'ui-sans-serif', 'system-ui'],
-          mono: ['IBM Plex Mono', 'ui-monospace', 'monospace'],
+          display: ['Arial', 'sans-serif'],
+          sans: ['Arial', 'sans-serif'],
+          mono: ['Arial', 'sans-serif'],
         },
       },
     },
@@ -57,12 +52,16 @@
 </script>
 
 <style>
-  html { scroll-behavior: smooth; }
+  html { 
+    scroll-behavior: smooth; 
+    font-family: Arial, sans-serif;
+  }
   body {
     background-color: #0F1424;
     background-image:
       radial-gradient(circle at 15% 0%, rgba(199,163,84,0.08), transparent 40%),
       radial-gradient(circle at 100% 30%, rgba(201,138,151,0.06), transparent 45%);
+    font-family: Arial, sans-serif;
   }
 
   /* Fundal rețea (blueprint grid) pentru schița sălii */
@@ -130,7 +129,7 @@
 </style>
 </head>
 
-<body class="min-h-screen font-sans text-parchment">
+<body class="min-h-screen text-parchment">
 
   <!-- ============ HEADER / NAV ============ -->
   <header class="sticky top-0 z-40 border-b border-ink-700/80 bg-ink-950/90 backdrop-blur">
@@ -566,7 +565,7 @@ function renderEntranceDOM() {
   node.innerHTML = `
     <div class="flex flex-col items-center justify-center gap-1 px-1 pointer-events-none">
       <i data-lucide="door-open"></i>
-      <span class="text-[9px] font-mono uppercase tracking-[0.1em] leading-none font-bold">INTRARE</span>
+      <span class="text-[9px] uppercase tracking-[0.1em] leading-none font-bold">INTRARE</span>
     </div>
   `;
 
@@ -852,33 +851,100 @@ document.getElementById('deleteElBtn').addEventListener('click', () => {
 document.getElementById('saveLayoutBtn').addEventListener('click', async () => {
   const excelTables = getUniqueTables(); 
 
-  const mapTables = [...new Set(mapLayout.elements
-    .filter(el => el.type === 'guestTable' || el.type === 'prezidiu')
-    .map(el => el.tableName)
-    .filter(Boolean))]; 
-
-  const unmappedTableOnMap = mapLayout.elements.some(el => 
-    (el.type === 'guestTable' || el.type === 'prezidiu') && !el.tableName
-  );
-
-  const missingOnMap = excelTables.filter(t => !mapTables.includes(t));
-
+  // 1. Verificare prezență date Excel
   if (guests.length === 0) {
     showToast("⚠️ Atenție! Nu ai încărcat nicio listă de invitați.", true);
     return;
-  } else if (unmappedTableOnMap) {
-    showToast("⚠️ Eroare! Ai elemente Masă/Prezidiu neasociate pe hartă.", true);
-    alert("Există elemente pe hartă lăsate pe starea '-- Neasociat --'. Te rugăm să dai click pe ele și să le asociezi cu o coloană din Excel!");
+  }
+
+  // 2. VERIFICĂRI ELEMENTE MANDATORII (Trebuie să fie exact 1 din fiecare tip principal)
+  const countElements = (type) => mapLayout.elements.filter(el => el.type === type).length;
+  
+  const danceFloorCount = countElements('danceFloor');
+  const stageCount = countElements('stage');
+  const restroomsCount = countElements('restrooms');
+  const prezidiuCount = countElements('prezidiu');
+
+  if (danceFloorCount !== 1) {
+    showToast("⚠️ Schița are nevoie de EXACT un Ring de Dans!", true);
+    alert(`Eroare! Schița trebuie să conțină EXACT un Ring de Dans.\nÎn acest moment ai: ${danceFloorCount}.`);
+    return;
+  }
+  if (stageCount !== 1) {
+    showToast("⚠️ Schița are nevoie de EXACT o Scenă / Formație!", true);
+    alert(`Eroare! Schița trebuie să conțină EXACT o Scenă.\nÎn acest moment ai: ${stageCount}.`);
+    return;
+  }
+  if (restroomsCount !== 1) {
+    showToast("⚠️ Schița are nevoie de EXACT o zonă de Toalete!", true);
+    alert(`Eroare! Schița trebuie să conțină EXACT o zonă de Toalete.\nÎn acest moment ai: ${restroomsCount}.`);
+    return;
+  }
+  if (prezidiuCount !== 1) {
+    showToast("⚠️ Schița are nevoie de EXACT un Prezidiu!", true);
+    alert(`Eroare! Schița trebuie să conțină EXACT un Prezidiu.\nÎn acest moment ai: ${prezidiuCount}.`);
+    return;
+  }
+
+  // 3. Verificări Prezidiu
+  const prezidiuEl = mapLayout.elements.find(el => el.type === 'prezidiu');
+  if (!prezidiuEl.tableName) {
+    showToast("⚠️ Prezidiul de pe hartă nu este asociat!", true);
+    alert("Eroare! Prezidiul este pus pe schiță, dar este lăsat pe '-- Neasociat --'. Te rugăm să îl asociezi cu coloana corespunzătoare din Excel (de exemplu, coloana 'Prezidiu').");
+    return;
+  }
+
+  // 4. Verificare Mese de Invitați (Să nu existe neasociate)
+  const visualTables = mapLayout.elements.filter(el => el.type === 'guestTable');
+  const unmappedTableOnMap = visualTables.some(el => !el.tableName);
+
+  if (unmappedTableOnMap) {
+    showToast("⚠️ Ai mese neasociate pe hartă!", true);
+    alert("Eroare! Există elemente de tip 'Masă' pe schiță lăsate pe starea '-- Neasociat --'. Te rugăm să le asociezi sau să le ștergi pe cele în plus!");
     return; 
-  } else if (missingOnMap.length > 0) {
-    showToast(`⚠️ Lipsesc ${missingOnMap.length} mese pe schiță!`, true);
-    alert(`Salvare blocată!\n\nUrmătoarele coloane din Excel nu au nicio masă corespunzătoare plasată pe hartă:\n👉 [ ${missingOnMap.join(', ')} ]\n\nConfigurează cel puțin o masă pe schiță pentru fiecare coloană din Excel!`);
+  }
+
+  // Toate elementele asociate (Prezidiu + Mese)
+  const allMappedNames = mapLayout.elements
+    .filter(el => el.type === 'guestTable' || el.type === 'prezidiu')
+    .map(el => el.tableName)
+    .filter(Boolean);
+
+  // 5. BUG FIX: Verificare DUPLICATE pe schiță
+  const duplicates = allMappedNames.filter((item, index) => allMappedNames.indexOf(item) !== index);
+  if (duplicates.length > 0) {
+    const uniqueDupes = [...new Set(duplicates)];
+    showToast(`⚠️ Mese duplicate: [ ${uniqueDupes.join(', ')} ]`, true);
+    alert(`Eroare! Următoarele mese din Excel sunt folosite DE MAI MULTE ORI pe schiță:\n👉 [ ${uniqueDupes.join(', ')} ]\n\nFiecare masă din Excel trebuie reprezentată de o singură masă pe hartă! Șterge duplicatele.`);
+    return;
+  }
+
+  // 6. Verificare Mese lipsă din Excel pe schiță
+  const missingOnMap = excelTables.filter(t => !allMappedNames.includes(t));
+  if (missingOnMap.length > 0) {
+    showToast(`⚠️ Lipsesc ${missingOnMap.length} mese din Excel!`, true);
+    alert(`Salvare blocată!\n\nUrmătoarele mese din Excel nu au fost adăugate și asociate pe schiță:\n👉 [ ${missingOnMap.join(', ')} ]\n\nAdaugă elemente corespunzătoare pe hartă pentru ele!`);
     return; 
+  }
+
+  // 7. Verificare Mese extra (care nu se regăsesc în Excel)
+  const extraOnMap = allMappedNames.filter(t => !excelTables.includes(t));
+  if (extraOnMap.length > 0) {
+    showToast(`⚠️ Mese invalide pe schiță!`, true);
+    alert(`Eroare! Următoarele asocieri de pe schiță nu există în Excelul curent:\n👉 [ ${extraOnMap.join(', ')} ]\n\nVerifică-le sau reasociază-le!`);
+    return;
+  }
+
+  // 8. Verificare număr fix de mese
+  // Dacă am trecut de duplicare, lipsă și extra, automat numărul este fix cel din Excel, dar adăugăm o asigurare vizuală
+  if (allMappedNames.length !== excelTables.length) {
+    showToast(`⚠️ Nepotrivire număr mese!`, true);
+    alert(`Eroare! Trebuie să ai exact ${excelTables.length} mese pe schiță (inclusiv Prezidiu). În acest moment ai asociat ${allMappedNames.length}.`);
+    return;
   }
 
   showToast('Se salvează securizat în Google Sheets...');
   
-  // Salvăm oricum local ca rezervă de siguranță
   localStorage.setItem(STORAGE_GUESTS, JSON.stringify(guests));
   localStorage.setItem(STORAGE_LAYOUT, JSON.stringify(mapLayout));
 
