@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hostess — Panou Intrare Nunți</title>
+
+<!-- Tailwind CSS via CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Lucide icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: {
+            950: '#0F1424',
+            900: '#141A2E',
+            800: '#1B2340',
+            700: '#242D52',
+            600: '#333F6E',
+          },
+          gold: {
+            300: '#E4CD98',
+            400: '#D4B573',
+            500: '#C7A354',
+          },
+          rose: {
+            400: '#D89AA3',
+            500: '#C98A97',
+          },
+          sage: {
+            400: '#9FBB98',
+            500: '#8FAE8B',
+          },
+          parchment: '#EFEAE0',
+        },
+        fontFamily: {
+          display: ['Arial', 'sans-serif'],
+          sans: ['Arial', 'sans-serif'],
+          mono: ['Arial', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+
+<style>
+  html { 
+    scroll-behavior: smooth; 
+    font-family: Arial, sans-serif;
+  }
+  body {
+    background-color: #0F1424;
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(199,163,84,0.08), transparent 40%),
+      radial-gradient(circle at 100% 30%, rgba(201,138,151,0.06), transparent 45%);
+    font-family: Arial, sans-serif;
+  }
+
+  /* Fundal rețea (blueprint grid) pentru schița sălii */
+  .blueprint-grid {
+    background-color: #131A30;
+    background-image:
+      linear-gradient(rgba(228, 205, 152, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(228, 205, 152, 0.05) 1px, transparent 1px),
+      linear-gradient(rgba(228, 205, 152, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(228, 205, 152, 0.02) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  }
+
+  .map-element {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+  }
+
+  /* Clasa specială pentru masa care pulsează când e selectată */
+  .highlight-pulse {
+    background-color: rgba(199, 163, 84, 0.45) !important;
+    border: 3px solid #D4B573 !important;
+    color: #0F1424 !important;
+    box-shadow: 0 0 25px rgba(212, 181, 115, 0.85);
+    z-index: 50 !important;
+    animation: mapPulse 1.5s infinite alternate;
+  }
+
+  @keyframes mapPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.08); }
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #333F6E; border-radius: 8px; }
+
+  .fade-in { animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
+
+  #toast {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  #toast.hidden-toast {
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+  }
+</style>
+</head>
+
+<body class="min-h-screen text-parchment">
+
+  <!-- ============ HEADER / NAV ============ -->
+  <header class="sticky top-0 z-40 border-b border-ink-700/80 bg-ink-950/90 backdrop-blur">
+    <div class="max-w-7xl mx-auto px-4 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-md bg-gold-500/15 border border-gold-500/40 flex items-center justify-center">
+          <i data-lucide="users" class="w-5 h-5 text-gold-400"></i>
+        </div>
+        <div>
+          <h1 class="font-display text-lg sm:text-xl font-semibold tracking-tight leading-none text-parchment">
+            Panou Hostess — <span class="text-gold-400">Primire Invitați</span>
+          </h1>
+          <p class="text-[11px] uppercase tracking-[0.18em] text-parchment/40 mt-1">Sincronizat live în cloud</p>
+        </div>
+      </div>
+
+      <!-- Panou Statistici Prezență -->
+      <div class="flex items-center gap-4 bg-ink-900 border border-ink-700 rounded-xl px-4 py-2">
+        <div class="text-right">
+          <p class="text-[10px] uppercase tracking-wider text-parchment/45">Prezență sală</p>
+          <p class="text-xs font-semibold text-gold-300 mt-0.5"><span id="checkedInCount">0</span> sosiți din <span id="totalGuestsCount">0</span></p>
+        </div>
+        <div class="w-px h-8 bg-ink-700"></div>
+        <div id="syncIndicator" class="flex items-center gap-1.5 text-xs text-sage-400">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span>Sincronizat</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-8 py-6">
+    <div class="flex flex-col lg:flex-row gap-6">
+      
+      <!-- COLOANA STÂNGA: CĂUTARE ȘI LISTĂ INVIȚATI -->
+      <div class="w-full lg:w-[420px] shrink-0 flex flex-col bg-ink-900/80 border border-ink-700 rounded-xl overflow-hidden h-[680px]">
+        
+        <!-- Zona Căutare -->
+        <div class="p-4 border-b border-ink-700 bg-ink-950/40 space-y-3">
+          <div class="relative">
+            <i data-lucide="search" class="w-4 h-4 text-parchment/40 absolute left-3 top-1/2 -translate-y-1/2"></i>
+            <input id="searchBar" type="text" placeholder="Caută după nume sau telefon..."
+              class="w-full bg-ink-950 border border-ink-700 rounded-lg pl-9 pr-4 py-2.5 text-sm text-parchment placeholder:text-parchment/30 focus:outline-none focus:border-gold-500/60" />
+          </div>
+          
+          <div class="flex gap-2">
+            <button id="filterAll" class="flex-1 text-xs py-1.5 rounded bg-gold-500 text-ink-950 font-semibold transition-colors">Toți</button>
+            <button id="filterAbsent" class="flex-1 text-xs py-1.5 rounded bg-ink-800 hover:bg-ink-700 text-parchment/70 transition-colors">Nesosiți</button>
+            <button id="filterArrived" class="flex-1 text-xs py-1.5 rounded bg-ink-800 hover:bg-ink-700 text-parchment/70 transition-colors">Sosiți</button>
+          </div>
+        </div>
+
+        <!-- Lista de Invitați (Scrollable) -->
+        <div class="overflow-auto flex-1 divide-y divide-ink-700/60" id="guestListContainer">
+          <!-- Populat prin JavaScript -->
+        </div>
+
+        <!-- Loader stare inițială / de încărcare -->
+        <div id="loadingState" class="absolute inset-0 z-50 bg-ink-950/90 flex flex-col items-center justify-center gap-3">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-400"></div>
+          <p class="text-sm text-parchment/70 font-medium">Se încarcă lista și harta din Google Sheets...</p>
+        </div>
+      </div>
+
+      <!-- COLOANA DREAPTĂ: SCHIȚA SĂLII LIVE (READ ONLY) -->
+      <div class="flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="font-semibold text-lg flex items-center gap-2">
+            <i data-lucide="map" class="w-4 h-4 text-gold-400"></i> Schiță Interactivă Sală
+          </h2>
+          <span class="text-xs text-parchment/40">Schița este securizată. Selectează un invitat din listă pentru a-i localiza masa.</span>
+        </div>
+
+        <div id="canvas" class="blueprint-grid relative w-full rounded-xl border border-ink-700 overflow-hidden shadow-lg" style="aspect-ratio: 16 / 10;">
+          <!-- Populat din cloud -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Sistem Toast pentru alerte rapide -->
+  <div id="toast" class="hidden-toast fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ink-800 border border-gold-500/40 text-parchment text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2">
+    <span id="toastMsg">Salvat!</span>
+  </div>
+
+<script>
+/* ============================================================
+   AICI ESTE CONECTAREA CU STRADA TA DIN GOOGLE SHEETS!
+   ============================================================ */
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz2rx1z279lYfY3ocChwXXydhjyQwFckGWvcRUHXSmWhNHs7DEZT-xzLY_92hrUWvALuQ/exec";
+
+let guests = [];
+let mapLayout = { entrance: { x: 50, y: 88 }, elements: [] };
+let selectedGuest = null;
+let currentFilter = 'all'; // 'all', 'absent', 'arrived'
+
+const ELEMENT_DEFS = {
+  danceFloor: { label: 'Ring de Dans', radius: '50%',   bg: 'rgba(212,181,115,0.06)', border: 'rgba(212,181,115,0.4)', icon: 'disc' },
+  stage:      { label: 'Scenă / Formație', radius: '6px', bg: 'rgba(201,138,151,0.06)', border: 'rgba(201,138,151,0.4)', icon: 'music-4' },
+  restrooms:  { label: 'Toalete',    radius: '6px', bg: 'rgba(143,174,139,0.06)', border: 'rgba(143,174,139,0.4)', icon: 'door-closed' },
+  prezidiu:   { label: 'Prezidiu',     radius: '999px 999px 6px 6px', bg: 'rgba(212,181,115,0.06)', border: 'rgba(212,181,115,0.4)', icon: 'crown' },
+  guestTable: { label: 'Masă Invitați', radius: '50%',  bg: 'rgba(228,205,152,0.05)', border: 'rgba(228,205,152,0.3)', icon: 'circle-dot' },
+};
+
+/* ============================================================
+   SISTEM TOAST
+   ============================================================ */
+let toastTimer = null;
+function showToast(msg, isWarning = false) {
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
+  toastMsg.textContent = msg;
+
+  if (isWarning) {
+    toast.className = "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-amber-950/90 border border-amber-500 text-amber-200 text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2 transition-all duration-300";
+  } else {
+    toast.className = "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ink-800/90 border border-gold-500/40 text-parchment text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2 transition-all duration-300";
+  }
+  
+  toast.classList.remove('hidden-toast');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.add('hidden-toast'), 3500);
+}
+
+/* ============================================================
+   DESCARCARE DATE DIN GOOGLE SHEETS (JSONP STANDARD)
+   ============================================================ */
+async function loadDataFromSheets() {
+  const indicator = document.getElementById('syncIndicator');
+  indicator.innerHTML = `
+    <span class="animate-spin rounded-full h-3 w-3 border-b-2 border-gold-400"></span>
+    <span class="text-parchment/40">Se descarcă...</span>
+  `;
+
+  try {
+    const response = await fetch(GOOGLE_SCRIPT_URL);
+    const data = await response.json();
+    
+    if (data) {
+      guests = data.guests || [];
+      if (data.layout) {
+        mapLayout = data.layout;
+      }
+      
+      // Ascunde ecranul de încarcare
+      document.getElementById('loadingState').classList.add('hidden');
+      
+      // Upgrade interfață
+      updateStats();
+      renderGuestList();
+      renderMap();
+      
+      indicator.innerHTML = `
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span class="text-sage-400 font-semibold">Sincronizat live</span>
+      `;
+    }
+  } catch (err) {
+    console.error("Eroare la descărcarea datelor:", err);
+    indicator.innerHTML = `
+      <span class="relative flex h-2 w-2"><span class="rounded-full h-2 w-2 bg-rose-500"></span></span>
+      <span class="text-rose-400 font-semibold">Eroare sincronizare</span>
+    `;
+    showToast("⚠️ Conexiune eșuată. Se folosesc datele locale salvate.", true);
+    
+    // Fallback pe local storage dacă pică internetul complet
+    const localG = localStorage.getItem(STORAGE_GUESTS);
+    const localL = localStorage.getItem(STORAGE_LAYOUT);
+    if (localG) guests = JSON.parse(localG);
+    if (localL) mapLayout = JSON.parse(localL);
+    
+    document.getElementById('loadingState').classList.add('hidden');
+    updateStats();
+    renderGuestList();
+    renderMap();
+  }
+}
+
+/* ============================================================
+   SALVARE SECURED CHECK-IN (LIVE COLOANA IN SHEETS)
+   ============================================================ */
+async function toggleCheckIn(phone, currentStatus) {
+  const newStatus = !currentStatus;
+  
+  // Actualizăm starea în interfața locală instant pentru feedback rapid
+  const idx = guests.findIndex(g => g.phone === phone);
+  if (idx !== -1) {
+    guests[idx].checkedIn = newStatus;
+    updateStats();
+    renderGuestList();
+  }
+
+  const indicator = document.getElementById('syncIndicator');
+  indicator.innerHTML = `
+    <span class="animate-spin rounded-full h-3 w-3 border-b-2 border-gold-400"></span>
+    <span class="text-parchment/40">Se salvează check-in...</span>
+  `;
+
+  // Salvăm local storage ca rezervă
+  localStorage.setItem(STORAGE_GUESTS, JSON.stringify(guests));
+
+  try {
+    // Împachetăm cererea de check-in ca parametru GET securizat
+    const payloadData = JSON.stringify({ phone: phone, checkedIn: newStatus });
+    const finalUrl = `${GOOGLE_SCRIPT_URL}?action=saveCheckIn&payload=${encodeURIComponent(payloadData)}`;
+
+    const oldScript = document.getElementById('google-script-transport');
+    if (oldScript) document.body.removeChild(oldScript);
+
+    // Primim răspunsul în siguranță
+    window.callback = (response) => {
+      if (response && response.success) {
+        showToast(`✓ Check-in actualizat pentru ${response.name || 'invitat'}`);
+        indicator.innerHTML = `
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-sage-400 font-semibold">Sincronizat live</span>
+        `;
+      } else {
+        showToast("⚠️ Google Sheets a respins salvarea. Se reîncearcă...", true);
+      }
+      const scr = document.getElementById('google-script-transport');
+      if (scr) document.body.removeChild(scr);
+      delete window.callback;
+    };
+
+    const script = document.createElement('script');
+    script.id = 'google-script-transport';
+    script.src = finalUrl;
+    script.onerror = () => {
+      showToast("⚠️ Conexiune slabă. Check-in salvat local.", true);
+      if (window.callback) delete window.callback;
+    };
+    document.body.appendChild(script);
+
+  } catch (err) {
+    console.error("Eroare salvare check-in:", err);
+    showToast("⚠️ Eroare salvare în cloud. Păstrat local.", true);
+  }
+}
+
+/* ============================================================
+   LOGICA DE FILTRARE SI RENDER LISTĂ
+   ============================================================ */
+function renderGuestList() {
+  const container = document.getElementById('guestListContainer');
+  const q = document.getElementById('searchBar').value.trim().toLowerCase();
+  
+  let filtered = guests;
+
+  // 1. Filtrare după Status Buton
+  if (currentFilter === 'absent') {
+    filtered = filtered.filter(g => !g.checkedIn);
+  } else if (currentFilter === 'arrived') {
+    filtered = filtered.filter(g => g.checkedIn);
+  }
+
+  // 2. Filtrare după text căutare
+  if (q) {
+    filtered = filtered.filter(g => 
+      g.name.toLowerCase().includes(q) || 
+      g.phone.includes(q) || 
+      g.table.toLowerCase().includes(q)
+    );
+  }
+
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="text-center text-sm text-parchment/35 py-16">
+        Niciun invitat găsit pentru criteriul căutat.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filtered.map(g => {
+    const isSelected = selectedGuest && selectedGuest.phone === g.phone;
+    return `
+      <div class="p-3.5 flex items-center justify-between gap-3 transition-colors cursor-pointer ${isSelected ? 'bg-gold-500/10 border-l-4 border-gold-400' : 'hover:bg-ink-800/40'}"
+        onclick="selectGuest('${g.phone}')">
+        
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-parchment leading-tight truncate">${escapeHtml(g.name)}</p>
+          <div class="flex items-center gap-2 mt-1.5">
+            <span class="inline-flex items-center gap-1 bg-ink-850 border border-ink-700 rounded-full px-2.5 py-0.5 text-[10px] text-gold-300 font-bold uppercase tracking-wider">
+              ${escapeHtml(g.table)}
+            </span>
+            <span class="text-[10px] font-mono text-parchment/40">${escapeHtml(g.phone)}</span>
+          </div>
+        </div>
+
+        <!-- Buton de Check-In -->
+        <button class="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg border transition-all ${
+          g.checkedIn 
+            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 hover:bg-rose-500/10 hover:border-rose-400/50 hover:text-rose-400' 
+            : 'bg-ink-950 border-ink-600 text-parchment/30 hover:border-gold-400 hover:text-gold-400'
+        }" 
+        title="${g.checkedIn ? 'Anulează sosirea' : 'Bifează ca sosit'}"
+        onclick="event.stopPropagation(); toggleCheckIn('${g.phone}', ${g.checkedIn})">
+          <i data-lucide="${g.checkedIn ? 'check' : 'circle'}" class="w-5 h-5"></i>
+        </button>
+      </div>
+    `;
+  }).join('');
+
+  if (window.lucide) {
+    lucide.createIcons({ attrs: { class: 'w-5 h-5' } });
+  }
+}
+
+// Logica selectare invitat (Evidențiere masă pe hartă)
+function selectGuest(phone) {
+  selectedGuest = guests.find(g => g.phone === phone);
+  
+  // Re-randăm lista pentru a schimba culoarea de fundal a rândului selectat
+  renderGuestList();
+  
+  // Highlight-uim masa corespunzătoare pe hartă
+  highlightTableOnMap(selectedGuest.table);
+}
+
+function highlightTableOnMap(tableName) {
+  // Ștergem highlight-ul de pe toate mesele vechi
+  document.querySelectorAll('.map-element').forEach(el => el.classList.remove('highlight-pulse'));
+  
+  if (!tableName) return;
+
+  // Căutăm elementul de masă corespunzător numelui mesei invitatului
+  const mapEl = mapLayout.elements.find(el => 
+    (el.type === 'guestTable' || el.type === 'prezidiu') && el.tableName === tableName
+  );
+
+  if (mapEl) {
+    const domNode = document.querySelector(`.map-element[data-id="${mapEl.id}"]`);
+    if (domNode) {
+      domNode.classList.add('highlight-pulse');
+      
+      // Efect de auto-scroll blând pe hartă dacă schița ar fi mare, dar fiind una singură pe ecran doar luminează superb!
+      showToast(`Masa [ ${tableName} ] a fost identificată pe hartă!`);
+    }
+  } else {
+    showToast(`⚠️ Masa '${tableName}' nu este desenată pe schiță!`, true);
+  }
+}
+
+/* ============================================================
+   RULARE ȘI DESENARE SCHIȚĂ HARTĂ (READ ONLY)
+   ============================================================ */
+function renderMap() {
+  const canvas = document.getElementById('canvas');
+  canvas.querySelectorAll('.map-element').forEach(n => n.remove());
+  
+  // 1. Randare Intrare
+  canvas.appendChild(renderEntranceDOM());
+
+  // 2. Randare elemente din layout
+  mapLayout.elements.forEach(el => {
+    canvas.appendChild(createElementDOM(el));
+  });
+
+  if (window.lucide) {
+    lucide.createIcons({ attrs: { class: 'w-4 h-4 opacity-75' } });
+  }
+}
+
+function renderEntranceDOM() {
+  const node = document.createElement('div');
+  node.className = 'map-element absolute border-2 border-gold-400 bg-gold-500/20 rounded-md text-gold-300 shadow-md pointer-events-none';
+  node.style.zIndex = '25';
+  node.style.width = '10%';
+  node.style.height = '8%';
+  
+  node.innerHTML = `
+    <div class="flex flex-col items-center justify-center gap-1 px-1">
+      <i data-lucide="door-open"></i>
+      <span class="text-[9px] uppercase tracking-[0.1em] leading-none font-bold">INTRARE</span>
+    </div>
+  `;
+  node.style.left = (mapLayout.entrance.x - 5) + '%';
+  node.style.top = (mapLayout.entrance.y - 4) + '%';
+  return node;
+}
+
+function createElementDOM(el) {
+  const def = ELEMENT_DEFS[el.type];
+  const node = document.createElement('div');
+  node.className = 'map-element absolute';
+  node.dataset.id = el.id;
+  node.style.background = def.bg;
+  node.style.border = `1.5px solid ${def.border}`;
+  node.style.borderRadius = def.radius;
+  node.style.color = '#EFEAE0';
+  node.style.zIndex = '20';
+
+  const isMappable = (el.type === 'guestTable' || el.type === 'prezidiu');
+  const displayLabel = isMappable && el.tableName ? el.tableName : el.label;
+  
+  node.innerHTML = `
+    <div class="flex flex-col items-center gap-1 px-2 pointer-events-none">
+      <i data-lucide="${def.icon}"></i>
+      <span class="text-[11px] sm:text-xs font-semibold leading-tight">${escapeHtml(displayLabel)}</span>
+    </div>
+  `;
+
+  node.style.left = (el.x - el.w / 2) + '%';
+  node.style.top = (el.y - el.h / 2) + '%';
+  node.style.width = el.w + '%';
+  node.style.height = el.h + '%';
+
+  // Permitem hostess-ului să apese direct pe masă pentru a vedea cine stă acolo (Opțional/Inteligent)
+  if (isMappable && el.tableName) {
+    node.style.cursor = 'pointer';
+    node.addEventListener('click', () => {
+      document.getElementById('searchBar').value = el.tableName;
+      renderGuestList();
+      highlightTableOnMap(el.tableName);
+      showToast(`Filtrat după: ${el.tableName}`);
+    });
+  }
+
+  return node;
+}
+
+/* ============================================================
+   LOGICA CONTROL BAR & EVENIMENTE ELEMENTE
+   ============================================================ */
+document.getElementById('searchBar').addEventListener('input', renderGuestList);
+
+const filterAllBtn = document.getElementById('filterAll');
+const filterAbsentBtn = document.getElementById('filterAbsent');
+const filterArrivedBtn = document.getElementById('filterArrived');
+
+function setActiveFilter(activeBtn, filter) {
+  [filterAllBtn, filterAbsentBtn, filterArrivedBtn].forEach(b => {
+    b.className = "flex-1 text-xs py-1.5 rounded bg-ink-800 hover:bg-ink-700 text-parchment/70 transition-colors";
+  });
+  activeBtn.className = "flex-1 text-xs py-1.5 rounded bg-gold-500 text-ink-950 font-semibold transition-colors";
+  currentFilter = filter;
+  renderGuestList();
+}
+
+filterAllBtn.addEventListener('click', () => setActiveFilter(filterAllBtn, 'all'));
+filterAbsentBtn.addEventListener('click', () => setActiveFilter(filterAbsentBtn, 'absent'));
+filterArrivedBtn.addEventListener('click', () => setActiveFilter(filterArrivedBtn, 'arrived'));
+
+function updateStats() {
+  const arrived = guests.filter(g => g.checkedIn).length;
+  document.getElementById('checkedInCount').textContent = arrived;
+  document.getElementById('totalGuestsCount').textContent = guests.length;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/* ============================================================
+   INITIALIZARE AUTOMATA LA LANSARE
+   ============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  loadDataFromSheets();
+  
+  // Realizăm interogarea live la fiecare 30 secunde pentru sincronizare automată între tablete
+  setInterval(loadDataFromSheets, 30000);
+});
+</script>
+</body>
+</html>
