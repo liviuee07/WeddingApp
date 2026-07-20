@@ -326,9 +326,9 @@
 
 <script>
 /* ============================================================
-   AICI INSEREZI LINKUL COPIAT DE LA GOOGLE APPS SCRIPT!
+   CONECTAREA DIRECTĂ CU GOOGLE SHEETS
    ============================================================ */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz2rx1z279lYfY3ocChwXXydhjyQwFckGWvcRUHXSmWhNHs7DEZT-xzLY_92hrUWvALuQ/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyzNfe5fRTMk19O5UWEktu73SDOZ0dKGucIr6yAPHua4jRg5lQn2mDrQ1ItxoWuruJfsQ/exec";
 
 const STORAGE_GUESTS = 'wedding_guests';
 const STORAGE_LAYOUT = 'wedding_map_layout';
@@ -851,13 +851,11 @@ document.getElementById('deleteElBtn').addEventListener('click', () => {
 document.getElementById('saveLayoutBtn').addEventListener('click', async () => {
   const excelTables = getUniqueTables(); 
 
-  // 1. Verificare prezență date Excel
   if (guests.length === 0) {
     showToast("⚠️ Atenție! Nu ai încărcat nicio listă de invitați.", true);
-    return; // STOP SALVARE
+    return;
   }
 
-  // 2. VERIFICĂRI ELEMENTE MANDATORII (Trebuie să fie exact 1 din fiecare tip principal)
   const countElements = (type) => mapLayout.elements.filter(el => el.type === type).length;
   
   const danceFloorCount = countElements('danceFloor');
@@ -868,93 +866,77 @@ document.getElementById('saveLayoutBtn').addEventListener('click', async () => {
   if (danceFloorCount !== 1) {
     showToast("⚠️ Schița are nevoie de EXACT un Ring de Dans!", true);
     alert(`Eroare! Schița trebuie să conțină EXACT un Ring de Dans.\nÎn acest moment ai pe hartă: ${danceFloorCount} ring-uri.`);
-    return; // STOP SALVARE ABSOLUT
+    return;
   }
   if (stageCount !== 1) {
     showToast("⚠️ Schița are nevoie de EXACT o Scenă / Formație!", true);
     alert(`Eroare! Schița trebuie să conțină EXACT o Scenă.\nÎn acest moment ai: ${stageCount}.`);
-    return; // STOP SALVARE ABSOLUT
+    return;
   }
   if (restroomsCount !== 1) {
     showToast("⚠️ Schița are nevoie de EXACT o zonă de Toalete!", true);
     alert(`Eroare! Schița trebuie să conțină EXACT o zonă de Toalete.\nÎn acest moment ai: ${restroomsCount}.`);
-    return; // STOP SALVARE ABSOLUT
+    return;
   }
   if (prezidiuCount !== 1) {
     showToast("⚠️ Schița are nevoie de EXACT un Prezidiu!", true);
     alert(`Eroare! Schița trebuie să conțină EXACT un Prezidiu.\nÎn acest moment ai: ${prezidiuCount}.`);
-    return; // STOP SALVARE ABSOLUT
+    return;
   }
 
-  // 3. Verificări Prezidiu (Trebuie asociat obligatoriu)
   const prezidiuEl = mapLayout.elements.find(el => el.type === 'prezidiu');
   if (!prezidiuEl.tableName) {
     showToast("⚠️ Prezidiul de pe hartă nu este asociat!", true);
-    alert("Eroare! Prezidiul este pus pe schiță, dar este lăsat pe '-- Neasociat --'. Te rugăm să îl asociezi cu coloana corespunzătoare din Excel (de exemplu, coloana 'Prezidiu').");
-    return; // STOP SALVARE ABSOLUT
+    alert("Eroare! Prezidiul este pus pe schiță, dar este lăsat pe '-- Neasociat --'. Te rugăm să îl asociezi cu coloana corespunzătoare din Excel.");
+    return;
   }
 
-  // 4. Verificare Mese de Invitați (Să nu existe neasociate)
   const visualTables = mapLayout.elements.filter(el => el.type === 'guestTable');
   const unmappedTableOnMap = visualTables.some(el => !el.tableName);
 
   if (unmappedTableOnMap) {
     showToast("⚠️ Ai mese neasociate pe hartă!", true);
-    alert("Eroare! Există elemente de tip 'Masă' pe schiță lăsate pe starea '-- Neasociat --'. Te rugăm să dai click pe ele și să le asociezi sau să le ștergi pe cele în plus!");
-    return; // STOP SALVARE ABSOLUT
+    alert("Eroare! Există elemente de tip 'Masă' pe schiță lăsate pe starea '-- Neasociat --'. Te rugăm să le asociezi sau să le ștergi pe cele în plus!");
+    return;
   }
 
-  // Toate elementele asociate corect (Prezidiu + Mese)
   const allMappedNames = mapLayout.elements
     .filter(el => el.type === 'guestTable' || el.type === 'prezidiu')
     .map(el => el.tableName)
     .filter(Boolean);
 
-  // 5. BUG FIX COMPLET: Verificare DUPLICATE pe schiță
   const duplicates = allMappedNames.filter((item, index) => allMappedNames.indexOf(item) !== index);
   if (duplicates.length > 0) {
     const uniqueDupes = [...new Set(duplicates)];
     showToast(`⚠️ Mese duplicate: [ ${uniqueDupes.join(', ')} ]`, true);
-    alert(`Eroare de Salvare!\n\nUrmătoarele mese din Excel sunt folosite DE MAI MULTE ORI pe schiță (le-ai asociat la mai mult de o masă de pe ecran):\n👉 [ ${uniqueDupes.join(', ')} ]\n\nFiecare masă din Excel are dreptul la o singură masă pe hartă! Modifică asocierile sau șterge mesele în plus.`);
-    return; // STOP SALVARE ABSOLUT
+    alert(`Eroare de Salvare!\n\nUrmătoarele mese din Excel sunt folosite DE MAI MULTE ORI pe schiță:\n👉 [ ${uniqueDupes.join(', ')} ]\n\nFiecare masă din Excel are dreptul la o singură masă pe hartă! Șterge duplicatele.`);
+    return;
   }
 
-  // 6. Verificare Mese lipsă din Excel pe schiță
   const missingOnMap = excelTables.filter(t => !allMappedNames.includes(t));
   if (missingOnMap.length > 0) {
     showToast(`⚠️ Lipsesc ${missingOnMap.length} mese din Excel!`, true);
     alert(`Salvare blocată!\n\nUrmătoarele mese din Excel nu au fost adăugate și asociate pe schiță:\n👉 [ ${missingOnMap.join(', ')} ]\n\nAdaugă elemente corespunzătoare pe hartă pentru ele!`);
-    return; // STOP SALVARE ABSOLUT
+    return;
   }
 
-  // 7. Verificare Mese extra (care nu se regăsesc în Excel)
   const extraOnMap = allMappedNames.filter(t => !excelTables.includes(t));
   if (extraOnMap.length > 0) {
     showToast(`⚠️ Mese invalide pe schiță!`, true);
-    alert(`Eroare de Salvare!\n\nUrmătoarele asocieri de pe schiță nu se regăsesc deloc în Excelul tău curent:\n👉 [ ${extraOnMap.join(', ')} ]\n\nReasociază-le corect!`);
-    return; // STOP SALVARE ABSOLUT
+    alert(`Eroare de Salvare!\n\nUrmătoarele asocieri de pe schiță nu se regăsesc deloc în Excelul tău:\n👉 [ ${extraOnMap.join(', ')} ]`);
+    return;
   }
 
-  // 8. Verificare finală număr perfect 1-la-1 de mese
   if (allMappedNames.length !== excelTables.length) {
     showToast(`⚠️ Nepotrivire număr mese!`, true);
-    alert(`Eroare! Trebuie să ai exact ${excelTables.length} mese plasate pe schiță (inclusiv Prezidiu). În acest moment ai asociat ${allMappedNames.length}.`);
-    return; // STOP SALVARE ABSOLUT
+    alert(`Eroare! Trebuie să ai exact ${excelTables.length} mese plasate pe schiță.`);
+    return;
   }
 
-  // ============================================================
-  // DOAR DACĂ A TRECUT DE TOATE FILTRELE DE SUS SE REALIZEAZĂ SALVAREA!
-  // ============================================================
   showToast('Se salvează securizat în Google Sheets...');
   
   localStorage.setItem(STORAGE_GUESTS, JSON.stringify(guests));
   localStorage.setItem(STORAGE_LAYOUT, JSON.stringify(mapLayout));
-
-  if (GOOGLE_SCRIPT_URL.includes("AICI_PUNE_LINKUL_TAU")) {
-    document.getElementById('mapSaveState').textContent = `Salvat doar local la ${new Date().toLocaleTimeString()}`;
-    showToast('Salvat local. Pune URL-ul Apps Script pentru cloud!');
-    return;
-  }
 
   try {
     const payloadData = JSON.stringify({
