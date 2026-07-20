@@ -206,9 +206,9 @@
 
 <script>
 /* ============================================================
-   AICI ESTE CONECTAREA CU STRADA TA DIN GOOGLE SHEETS! 
+   CONECTAREA DIRECTĂ CU GOOGLE SHEETS
    ============================================================ */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6X5Xu6FdEMLZbR7xvOPVpzJOr5SpPwrtHaK2xjZgSIEP1MnSl3ISq28TGK8FE60If8g/exec";
+const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyzNfe5fRTMk19O5UWEktu73SDOZ0dKGucIr6yAPHua4jRg5lQn2mDrQ1ItxoWuruJfsQ/exec";
 
 const STORAGE_GUESTS = 'wedding_guests';
 const STORAGE_LAYOUT = 'wedding_map_layout';
@@ -241,7 +241,6 @@ function loadDataFromSheets() {
     document.body.removeChild(oldScript);
   }
 
-  // Definim callback-ul pe care îl va rula răspunsul de la Google
   window.callbackRead = (data) => {
     if (data) {
       guests = data.guests || [];
@@ -299,7 +298,7 @@ function loadDataFromSheets() {
 }
 
 /* ============================================================
-   SALVARE live CHECK-IN (PRIN GET FORMAT SECURED)
+   SALVARE LIVE CHECK-IN (JSONP RESPONSIVE)
    ============================================================ */
 async function toggleCheckIn(phone, currentStatus) {
   const newStatus = !currentStatus;
@@ -553,10 +552,20 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function showToast(msg, isWarning = false) {
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
+  toastMsg.textContent = msg;
+  toast.className = isWarning 
+    ? "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-amber-950/90 border border-amber-500 text-amber-200 text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2"
+    : "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ink-800/90 border border-gold-500/40 text-parchment text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2";
+  toast.classList.remove('hidden-toast');
+  setTimeout(() => toast.classList.add('hidden-toast'), 3000);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadDataFromSheets();
-  // Auto-sincronizare la fiecare 30 secunde între tablete
-  setInterval(loadDataFromSheets, 30000);
+  setInterval(loadDataFromSheets, 30000); // Sincronizare automată la fiecare 30s
 });
 </script>
 </body>
