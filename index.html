@@ -61,6 +61,7 @@
     font-family: Arial, sans-serif;
   }
 
+  /* Fundal rețea (blueprint grid) pentru schița sălii */
   .blueprint-grid {
     background-color: #131A30;
     background-image:
@@ -81,6 +82,7 @@
     transition: all 0.3s ease;
   }
 
+  /* Clasa specială pentru masa care pulsează când e selectată */
   .highlight-pulse {
     background-color: rgba(199, 163, 84, 0.45) !important;
     border: 3px solid #D4B573 !important;
@@ -102,8 +104,14 @@
   .fade-in { animation: fadeIn 0.25s ease; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px);} to { opacity: 1; transform: translateY(0);} }
 
-  #toast { transition: transform 0.3s ease, opacity 0.3s ease; }
-  #toast.hidden-toast { transform: translateY(20px); opacity: 0; pointer-events: none; }
+  #toast {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  #toast.hidden-toast {
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+  }
 </style>
 </head>
 
@@ -181,7 +189,7 @@
           <h2 class="font-semibold text-lg flex items-center gap-2">
             <i data-lucide="map" class="w-4 h-4 text-gold-400"></i> Schiță Interactivă Sală
           </h2>
-          <span class="text-xs text-parchment/40">Schița este securizată. Selectează un invitat din listă pentru a-i localiza masa.</span>
+          <span class="text-xs text-parchment/40">Selectează un invitat din listă pentru a-i localiza masa.</span>
         </div>
 
         <div id="canvas" class="blueprint-grid relative w-full rounded-xl border border-ink-700 overflow-hidden shadow-lg" style="aspect-ratio: 16 / 10;">
@@ -191,15 +199,20 @@
     </div>
   </main>
 
+  <!-- Sistem Toast pentru alerte rapide -->
   <div id="toast" class="hidden-toast fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ink-800 border border-gold-500/40 text-parchment text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2">
     <span id="toastMsg">Salvat!</span>
   </div>
 
 <script>
 /* ============================================================
-   AICI ESTE LINKUL SCRIPTULUI DE LA GOOGLE APPS SCRIPT
+   AICI INSEREZI ACELEAȘI DATE CA ÎN ADMIN.HTML
    ============================================================ */
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyqpvQBeD1RAZRoscxHq7fb2TaOR5LThEKpsqcegTRUH_WDF1oSgIb_bH_d05NvZSvcA/exec";
+const JSONBIN_BIN_ID = "6a665398da38895dfe92f0db";
+const JSONBIN_MASTER_KEY = "$2a$10$oEJQ59Egu354AV0kzX.I4.XGOZCoTPtn58Q.GpFcNcw0AWsuJ3R2a";
+
+const STORAGE_GUESTS = 'wedding_guests';
+const STORAGE_LAYOUT = 'wedding_map_layout';
 
 let guests = [];
 let mapLayout = { entrance: { x: 50, y: 88 }, elements: [] };
@@ -215,62 +228,76 @@ const ELEMENT_DEFS = {
 };
 
 /* ============================================================
-   SISTEM DE CITIRE ULTRA-IMUN (SISTEM DIRECT DE INJECTARE)
+   DESCARCARE DATE DIN CLOUD (JSONBIN.IO)
    ============================================================ */
-function loadDataFromSheets() {
+async function loadDataFromCloud() {
   const indicator = document.getElementById('syncIndicator');
   indicator.innerHTML = `
     <span class="animate-spin rounded-full h-3 w-3 border-b-2 border-gold-400"></span>
     <span class="text-parchment/40">Se descarcă...</span>
   `;
 
-  // Curățăm elementul vechi de transport
-  const oldScript = document.getElementById('cloud-fetcher');
-  if (oldScript) document.body.removeChild(oldScript);
+  if (JSONBIN_BIN_ID.includes("PUNE_AICI")) {
+    console.warn("Completează JSONBIN_BIN_ID și JSONBIN_MASTER_KEY!");
+    document.getElementById('loadingState').classList.add('hidden');
+    return;
+  }
 
-  // Re-definim containerul global de răspuns ca să fie acceptat de orice browser mobil
-  window.callbackRead = function(data) {
-    if (data) {
-      guests = data.guests || [];
-      if (data.layout) mapLayout = data.layout;
-      
-      document.getElementById('loadingState').classList.add('hidden');
-      updateStats();
-      renderGuestList();
-      renderMap();
-      
-      indicator.innerHTML = `
-        <span class="relative flex h-2 w-2">
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        </span>
-        <span class="text-sage-400 font-semibold">Sincronizat live</span>
-      `;
+  try {
+    const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      method: 'GET',
+      headers: {
+        'X-Master-Key': JSONBIN_MASTER_KEY
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.record) {
+        guests = data.record.guests || [];
+        if (data.record.layout) mapLayout = data.record.layout;
+
+        document.getElementById('loadingState').classList.add('hidden');
+        updateStats();
+        renderGuestList();
+        renderMap();
+
+        indicator.innerHTML = `
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span class="text-sage-400 font-semibold">Sincronizat live</span>
+        `;
+
+        localStorage.setItem(STORAGE_GUESTS, JSON.stringify(guests));
+        localStorage.setItem(STORAGE_LAYOUT, JSON.stringify(mapLayout));
+      }
+    } else {
+      throw new Error("Eroare raspuns server");
     }
-    const s = document.getElementById('cloud-fetcher');
-    if (s) document.body.removeChild(s);
-  };
-
-  const script = document.createElement('script');
-  script.id = 'cloud-fetcher';
-  script.src = GOOGLE_SCRIPT_URL + "?readCallback=window.callbackRead&ts=" + new Date().getTime();
-  
-  script.onerror = function() {
+  } catch (err) {
+    console.error("Eroare la citire JSONBin:", err);
     indicator.innerHTML = `
       <span class="relative flex h-2 w-2"><span class="rounded-full h-2 w-2 bg-rose-500"></span></span>
-      <span class="text-rose-400 font-semibold">Eroare sincronizare</span>
+      <span class="text-rose-400 font-semibold">Eroare conexiune</span>
     `;
+    
+    // Fallback pe local storage dacă pică rețeaua
+    const localG = localStorage.getItem(STORAGE_GUESTS);
+    const localL = localStorage.getItem(STORAGE_LAYOUT);
+    if (localG) guests = JSON.parse(localG);
+    if (localL) mapLayout = JSON.parse(localL);
+
     document.getElementById('loadingState').classList.add('hidden');
     updateStats();
     renderGuestList();
     renderMap();
-  };
-
-  document.body.appendChild(script);
+  }
 }
 
 /* ============================================================
-   SISTEM DE SALVARE CHECK-IN LIVE
+   SALVARE LIVE CHECK-IN ÎN CLOUD (JSONBIN.IO)
    ============================================================ */
 async function toggleCheckIn(phone, currentStatus) {
   const newStatus = !currentStatus;
@@ -285,43 +312,46 @@ async function toggleCheckIn(phone, currentStatus) {
   const indicator = document.getElementById('syncIndicator');
   indicator.innerHTML = `
     <span class="animate-spin rounded-full h-3 w-3 border-b-2 border-gold-400"></span>
-    <span class="text-parchment/40">Se salvează...</span>
+    <span class="text-parchment/40">Se salvează check-in...</span>
   `;
 
+  localStorage.setItem(STORAGE_GUESTS, JSON.stringify(guests));
+
   try {
-    const payloadData = JSON.stringify({ phone: phone, checkedIn: newStatus });
-    const finalUrl = GOOGLE_SCRIPT_URL + "?action=saveCheckIn&payload=" + encodeURIComponent(payloadData) + "&ts=" + new Date().getTime();
-
-    const oldScript = document.getElementById('cloud-saver');
-    if (oldScript) document.body.removeChild(oldScript);
-
-    window.callback = function(response) {
-      if (response && response.success) {
-        showToast("✓ Status salvat securizat!");
-        indicator.innerHTML = `
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <span class="text-sage-400 font-semibold">Sincronizat live</span>
-        `;
-      }
-      const s = document.getElementById('cloud-saver');
-      if (s) document.body.removeChild(s);
+    const payload = {
+      guests: guests,
+      layout: mapLayout
     };
 
-    const script = document.createElement('script');
-    script.id = 'cloud-saver';
-    script.src = finalUrl;
-    document.body.appendChild(script);
+    const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_MASTER_KEY
+      },
+      body: JSON.stringify(payload)
+    });
 
+    if (response.ok) {
+      showToast(`✓ Prezență actualizată!`);
+      indicator.innerHTML = `
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        <span class="text-sage-400 font-semibold">Sincronizat live</span>
+      `;
+    } else {
+      showToast("⚠️ Eroare salvare cloud", true);
+    }
   } catch (err) {
-    console.error(err);
+    console.error("Eroare salvare check-in:", err);
+    showToast("⚠️ Problemă la trimitere cloud", true);
   }
 }
 
 /* ============================================================
-   LOGICA INTERFETEI (AFISARE SI FILTRE)
+   LOGICA AFISARE LISTA INVITATI
    ============================================================ */
 function renderGuestList() {
   const container = document.getElementById('guestListContainer');
@@ -329,17 +359,24 @@ function renderGuestList() {
   
   let filtered = guests;
 
-  if (currentFilter === 'absent') filtered = filtered.filter(g => !g.checkedIn);
-  if (currentFilter === 'arrived') filtered = filtered.filter(g => g.checkedIn);
+  if (currentFilter === 'absent') {
+    filtered = filtered.filter(g => !g.checkedIn);
+  } else if (currentFilter === 'arrived') {
+    filtered = filtered.filter(g => g.checkedIn);
+  }
 
   if (q) {
     filtered = filtered.filter(g => 
-      g.name.toLowerCase().includes(q) || g.phone.includes(q) || g.table.toLowerCase().includes(q)
+      g.name.toLowerCase().includes(q) || 
+      g.phone.includes(q) || 
+      g.table.toLowerCase().includes(q)
     );
   }
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="text-center text-sm text-parchment/35 py-16">Niciun invitat găsit.</div>`;
+    container.innerHTML = `
+      <div class="text-center text-sm text-parchment/35 py-16">Niciun invitat găsit.</div>
+    `;
     return;
   }
 
@@ -348,22 +385,32 @@ function renderGuestList() {
     return `
       <div class="p-3.5 flex items-center justify-between gap-3 transition-colors cursor-pointer ${isSelected ? 'bg-gold-500/10 border-l-4 border-gold-400' : 'hover:bg-ink-800/40'}"
         onclick="selectGuest('${g.phone}')">
+        
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-parchment leading-tight truncate">${escapeHtml(g.name)}</p>
           <div class="flex items-center gap-2 mt-1.5">
-            <span class="inline-flex items-center gap-1 bg-ink-800 border border-ink-600 rounded-full px-2.5 py-0.5 text-[10px] text-gold-300 font-bold uppercase tracking-wider">${escapeHtml(g.table)}</span>
+            <span class="inline-flex items-center gap-1 bg-ink-800 border border-ink-600 rounded-full px-2.5 py-0.5 text-[10px] text-gold-300 font-bold uppercase tracking-wider">
+              ${escapeHtml(g.table)}
+            </span>
             <span class="text-[10px] font-mono text-parchment/40">${escapeHtml(g.phone)}</span>
           </div>
         </div>
-        <button class="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg border transition-all ${g.checkedIn ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400' : 'bg-ink-950 border-ink-600 text-parchment/30'}" 
-          onclick="event.stopPropagation(); toggleCheckIn('${g.phone}', ${g.checkedIn})">
+
+        <button class="shrink-0 flex items-center justify-center w-10 h-10 rounded-lg border transition-all ${
+          g.checkedIn 
+            ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 hover:bg-rose-500/10 hover:border-rose-400/50 hover:text-rose-400' 
+            : 'bg-ink-950 border-ink-600 text-parchment/30 hover:border-gold-400 hover:text-gold-400'
+        }" 
+        onclick="event.stopPropagation(); toggleCheckIn('${g.phone}', ${g.checkedIn})">
           <i data-lucide="${g.checkedIn ? 'check' : 'circle'}" class="w-5 h-5"></i>
         </button>
       </div>
     `;
   }).join('');
 
-  if (window.lucide) lucide.createIcons({ attrs: { class: 'w-5 h-5' } });
+  if (window.lucide) {
+    lucide.createIcons({ attrs: { class: 'w-5 h-5' } });
+  }
 }
 
 function selectGuest(phone) {
@@ -376,31 +423,54 @@ function highlightTableOnMap(tableName) {
   document.querySelectorAll('.map-element').forEach(el => el.classList.remove('highlight-pulse'));
   if (!tableName) return;
 
-  const mapEl = mapLayout.elements.find(el => (el.type === 'guestTable' || el.type === 'prezidiu') && el.tableName === tableName);
+  const mapEl = mapLayout.elements.find(el => 
+    (el.type === 'guestTable' || el.type === 'prezidiu') && el.tableName === tableName
+  );
+
   if (mapEl) {
     const domNode = document.querySelector(`.map-element[data-id="${mapEl.id}"]`);
-    if (domNode) domNode.classList.add('highlight-pulse');
+    if (domNode) {
+      domNode.classList.add('highlight-pulse');
+      showToast(`Masa [ ${tableName} ] localizată!`);
+    }
+  } else {
+    showToast(`⚠️ Masa '${tableName}' nu se află pe schiță!`, true);
   }
 }
 
+/* ============================================================
+   DESENARE HARTA READ ONLY
+   ============================================================ */
 function renderMap() {
   const canvas = document.getElementById('canvas');
   canvas.querySelectorAll('.map-element').forEach(n => n.remove());
+  
   canvas.appendChild(renderEntranceDOM());
 
   mapLayout.elements.forEach(el => {
     canvas.appendChild(createElementDOM(el));
   });
 
-  if (window.lucide) lucide.createIcons({ attrs: { class: 'w-4 h-4 opacity-70' } });
+  if (window.lucide) {
+    lucide.createIcons({ attrs: { class: 'w-4 h-4 opacity-70' } });
+  }
 }
 
 function renderEntranceDOM() {
   const node = document.createElement('div');
   node.className = 'map-element absolute border-2 border-gold-400 bg-gold-500/20 rounded-md text-gold-300 shadow-md pointer-events-none';
-  node.style.width = '10%'; node.style.height = '8%'; node.style.zIndex = '25';
-  node.innerHTML = `<div class="flex flex-col items-center justify-center gap-1 px-1"><i data-lucide="door-open"></i><span class="text-[9px] uppercase tracking-[0.1em] font-bold">INTRARE</span></div>`;
-  node.style.left = (mapLayout.entrance.x - 5) + '%'; node.style.top = (mapLayout.entrance.y - 4) + '%';
+  node.style.zIndex = '25';
+  node.style.width = '10%';
+  node.style.height = '8%';
+  
+  node.innerHTML = `
+    <div class="flex flex-col items-center justify-center gap-1 px-1">
+      <i data-lucide="door-open"></i>
+      <span class="text-[9px] uppercase tracking-[0.1em] leading-none font-bold">INTRARE</span>
+    </div>
+  `;
+  node.style.left = (mapLayout.entrance.x - 5) + '%';
+  node.style.top = (mapLayout.entrance.y - 4) + '%';
   return node;
 }
 
@@ -408,13 +478,27 @@ function createElementDOM(el) {
   const def = ELEMENT_DEFS[el.type];
   const node = document.createElement('div');
   node.className = 'map-element absolute';
-  node.dataset.id = el.id; node.style.background = def.bg; node.style.border = `1.5px solid ${def.border}`; node.style.borderRadius = def.radius; node.style.color = '#EFEAE0'; node.style.zIndex = '20';
+  node.dataset.id = el.id;
+  node.style.background = def.bg;
+  node.style.border = `1.5px solid ${def.border}`;
+  node.style.borderRadius = def.radius;
+  node.style.color = '#EFEAE0';
+  node.style.zIndex = '20';
 
   const isMappable = (el.type === 'guestTable' || el.type === 'prezidiu');
   const displayLabel = isMappable && el.tableName ? el.tableName : el.label;
   
-  node.innerHTML = `<div class="flex flex-col items-center gap-1 px-2 pointer-events-none"><i data-lucide="${def.icon}"></i><span class="text-[11px] sm:text-xs font-semibold leading-tight">${escapeHtml(displayLabel)}</span></div>`;
-  node.style.left = (el.x - el.w / 2) + '%'; node.style.top = (el.y - el.h / 2) + '%'; node.style.width = el.w + '%'; node.style.height = el.h + '%';
+  node.innerHTML = `
+    <div class="flex flex-col items-center gap-1 px-2 pointer-events-none">
+      <i data-lucide="${def.icon}"></i>
+      <span class="text-[11px] sm:text-xs font-semibold leading-tight">${escapeHtml(displayLabel)}</span>
+    </div>
+  `;
+
+  node.style.left = (el.x - el.w / 2) + '%';
+  node.style.top = (el.y - el.h / 2) + '%';
+  node.style.width = el.w + '%';
+  node.style.height = el.h + '%';
 
   if (isMappable && el.tableName) {
     node.style.cursor = 'pointer';
@@ -424,17 +508,22 @@ function createElementDOM(el) {
       highlightTableOnMap(el.tableName);
     });
   }
+
   return node;
 }
 
+/* ============================================================
+   CONTROALE FILTRE SI STATISTICI
+   ============================================================ */
 document.getElementById('searchBar').addEventListener('input', renderGuestList);
+
 const filterAllBtn = document.getElementById('filterAll');
 const filterAbsentBtn = document.getElementById('filterAbsent');
 const filterArrivedBtn = document.getElementById('filterArrived');
 
 function setActiveFilter(activeBtn, filter) {
   [filterAllBtn, filterAbsentBtn, filterArrivedBtn].forEach(b => {
-    b.className = "flex-1 text-xs py-1.5 rounded bg-ink-800 text-parchment/70 transition-colors";
+    b.className = "flex-1 text-xs py-1.5 rounded bg-ink-800 hover:bg-ink-700 text-parchment/70 transition-colors";
   });
   activeBtn.className = "flex-1 text-xs py-1.5 rounded bg-gold-500 text-ink-950 font-semibold transition-colors";
   currentFilter = filter;
@@ -451,18 +540,25 @@ function updateStats() {
   document.getElementById('totalGuestsCount').textContent = guests.length;
 }
 
-function escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
-function showToast(msg) {
+function showToast(msg, isWarning = false) {
   const toast = document.getElementById('toast');
-  document.getElementById('toastMsg').textContent = msg;
+  const toastMsg = document.getElementById('toastMsg');
+  toastMsg.textContent = msg;
+  toast.className = isWarning 
+    ? "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-amber-950/90 border border-amber-500 text-amber-200 text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2"
+    : "fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-ink-800/90 border border-gold-500/40 text-parchment text-sm px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2";
   toast.classList.remove('hidden-toast');
-  setTimeout(() => toast.classList.add('hidden-toast'), 2500);
+  setTimeout(() => toast.classList.add('hidden-toast'), 3000);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadDataFromSheets();
-  setInterval(loadDataFromSheets, 20000); // Auto-sincronizare la 20 secunde pentru siguranță maximă
+  loadDataFromCloud();
+  // Sincronizare automată live între tabletele hostess-ilor la fiecare 15 secunde
+  setInterval(loadDataFromCloud, 15000);
 });
 </script>
 </body>
