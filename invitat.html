@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Găsește Masa Ta — Eveniment</title>
+
+<!-- Tailwind CSS via CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Lucide icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink: {
+            950: '#0F1424',
+            900: '#141A2E',
+            800: '#1B2340',
+            700: '#242D52',
+            600: '#333F6E',
+          },
+          gold: {
+            300: '#E4CD98',
+            400: '#D4B573',
+            500: '#C7A354',
+          },
+          parchment: '#EFEAE0',
+        },
+        fontFamily: {
+          display: ['Arial', 'sans-serif'],
+          sans: ['Arial', 'sans-serif'],
+        },
+      },
+    },
+  };
+</script>
+
+<style>
+  html, body {
+    font-family: Arial, sans-serif;
+    background-color: #0F1424;
+    color: #EFEAE0;
+  }
+  body {
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(199,163,84,0.12), transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(201,138,151,0.08), transparent 50%);
+  }
+
+  .blueprint-grid {
+    background-color: #131A30;
+    background-image:
+      linear-gradient(rgba(228, 205, 152, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(228, 205, 152, 0.05) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .map-element {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+  }
+
+  .highlight-pulse {
+    background-color: rgba(199, 163, 84, 0.5) !important;
+    border: 3px solid #D4B573 !important;
+    color: #0F1424 !important;
+    box-shadow: 0 0 30px rgba(212, 181, 115, 0.9);
+    z-index: 50 !important;
+    animation: mapPulse 1.2s infinite alternate;
+  }
+
+  @keyframes mapPulse {
+    from { transform: scale(1); }
+    to { transform: scale(1.1); }
+  }
+</style>
+</head>
+
+<body class="min-h-screen flex flex-col justify-between p-4 sm:p-6">
+
+  <!-- HEADER ELEGANT -->
+  <header class="text-center pt-4 pb-2">
+    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gold-500/10 border border-gold-500/30 mb-3">
+      <i data-lucide="sparkles" class="w-6 h-6 text-gold-400"></i>
+    </div>
+    <h1 class="text-2xl sm:text-3xl font-semibold tracking-tight text-parchment">Bine ați venit!</h1>
+    <p class="text-xs uppercase tracking-[0.2em] text-gold-300 mt-1">Găsește-ți locul la masă</p>
+  </header>
+
+  <main class="max-w-xl mx-auto w-full space-y-6 my-auto">
+    
+    <!-- CASETA CĂUTARE INVITAT -->
+    <div class="bg-ink-900/90 border border-ink-700 rounded-2xl p-5 shadow-2xl backdrop-blur">
+      <label class="block text-xs uppercase tracking-wider text-parchment/60 font-semibold mb-2">Căutare Invitat</label>
+      <div class="relative">
+        <i data-lucide="search" class="w-5 h-5 text-parchment/40 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+        <input id="guestSearch" type="text" placeholder="Scrie numele tău sau numărul de telefon..."
+          class="w-full bg-ink-950 border border-ink-700 rounded-xl pl-11 pr-4 py-3.5 text-base text-parchment placeholder:text-parchment/30 focus:outline-none focus:border-gold-500 transition-colors" />
+      </div>
+
+      <!-- LISTA REZULTATE DINAMICE -->
+      <div id="resultsList" class="mt-3 divide-y divide-ink-700/60 max-h-48 overflow-auto hidden"></div>
+    </div>
+
+    <!-- MESAJ CONFIRMARE LOC -->
+    <div id="welcomeCard" class="bg-gold-500/10 border border-gold-500/40 rounded-2xl p-5 text-center hidden">
+      <p class="text-xs uppercase tracking-widest text-gold-300 font-semibold">Locul Tău Confirmat</p>
+      <h2 id="guestNameDisplay" class="text-xl font-bold text-parchment mt-1"></h2>
+      <div class="mt-3 inline-block bg-gold-500 text-ink-950 px-4 py-1.5 rounded-full font-bold text-sm tracking-wide shadow-md" id="tableDisplay"></div>
+      <p class="text-xs text-parchment/60 mt-2">Masa ta clipește mai jos pe schița sălii! 👇</p>
+    </div>
+
+    <!-- SCHIȚA INTERACTIVĂ -->
+    <div class="bg-ink-900/80 border border-ink-700 rounded-2xl overflow-hidden shadow-xl">
+      <div id="canvas" class="blueprint-grid relative w-full" style="aspect-ratio: 16 / 10;">
+        <div id="loadingState" class="absolute inset-0 z-50 bg-ink-950/90 flex flex-col items-center justify-center gap-2">
+          <div class="animate-spin rounded-full h-7 w-7 border-b-2 border-gold-400"></div>
+          <p class="text-xs text-parchment/60">Se încarcă schița sălii...</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="text-center py-4 text-[11px] text-parchment/30">
+    Vă dorim petrecere frumoasă!
+  </footer>
+
+<script>
+/* ============================================================
+   DATE CONECTARE JSONBIN.IO
+   ============================================================ */
+const JSONBIN_BIN_ID = "PUNE_AICI_BIN_ID";
+const JSONBIN_MASTER_KEY = "PUNE_AICI_MASTER_KEY";
+
+let guests = [];
+let mapLayout = { entrance: { x: 50, y: 88 }, elements: [] };
+
+const ELEMENT_DEFS = {
+  danceFloor: { label: 'Ring de Dans', radius: '50%', bg: 'rgba(212,181,115,0.06)', border: 'rgba(212,181,115,0.4)', icon: 'disc' },
+  stage: { label: 'Scenă / Formație', radius: '6px', bg: 'rgba(201,138,151,0.06)', border: 'rgba(201,138,151,0.4)', icon: 'music-4' },
+  restrooms: { label: 'Toalete', radius: '6px', bg: 'rgba(143,174,139,0.06)', border: 'rgba(143,174,139,0.4)', icon: 'door-closed' },
+  prezidiu: { label: 'Prezidiu', radius: '999px 999px 6px 6px', bg: 'rgba(212,181,115,0.06)', border: 'rgba(212,181,115,0.4)', icon: 'crown' },
+  guestTable: { label: 'Masă Invitați', radius: '50%', bg: 'rgba(228,205,152,0.05)', border: 'rgba(228,205,152,0.3)', icon: 'circle-dot' },
+};
+
+async function loadDataFromCloud() {
+  try {
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_MASTER_KEY }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.record) {
+        guests = data.record.guests || [];
+        if (data.record.layout) mapLayout = data.record.layout;
+        document.getElementById('loadingState').classList.add('hidden');
+        renderMap();
+      }
+    }
+  } catch (err) {
+    console.error("Eroare incarcare JSONBin:", err);
+    document.getElementById('loadingState').classList.add('hidden');
+  }
+}
+
+const guestSearch = document.getElementById('guestSearch');
+const resultsList = document.getElementById('resultsList');
+
+guestSearch.addEventListener('input', () => {
+  const q = guestSearch.value.trim().toLowerCase();
+  if (!q || q.length < 2) {
+    resultsList.classList.add('hidden');
+    return;
+  }
+
+  const matches = guests.filter(g => g.name.toLowerCase().includes(q) || g.phone.includes(q));
+  if (matches.length === 0) {
+    resultsList.innerHTML = `<div class="p-3 text-xs text-parchment/40 text-center">Nume neidentificat. Încearcă din nou.</div>`;
+    resultsList.classList.remove('hidden');
+    return;
+  }
+
+  resultsList.innerHTML = matches.map(g => `
+    <div class="p-3 hover:bg-ink-800/60 cursor-pointer transition-colors flex justify-between items-center" onclick="selectGuest('${escapeHtml(g.phone)}')">
+      <span class="text-sm font-semibold text-parchment">${escapeHtml(g.name)}</span>
+      <span class="text-xs bg-gold-500/20 text-gold-300 border border-gold-500/40 px-2.5 py-0.5 rounded-full font-bold">${escapeHtml(g.table)}</span>
+    </div>
+  `).join('');
+  resultsList.classList.remove('hidden');
+});
+
+function selectGuest(phone) {
+  const g = guests.find(x => x.phone === phone);
+  if (!g) return;
+
+  resultsList.classList.add('hidden');
+  guestSearch.value = g.name;
+
+  document.getElementById('guestNameDisplay').textContent = g.name;
+  document.getElementById('tableDisplay').textContent = g.table;
+  document.getElementById('welcomeCard').classList.remove('hidden');
+
+  highlightTableOnMap(g.table);
+}
+
+function highlightTableOnMap(tableName) {
+  document.querySelectorAll('.map-element').forEach(el => el.classList.remove('highlight-pulse'));
+  const mapEl = mapLayout.elements.find(el => (el.type === 'guestTable' || el.type === 'prezidiu') && el.tableName === tableName);
+  if (mapEl) {
+    const node = document.querySelector(`.map-element[data-id="${mapEl.id}"]`);
+    if (node) {
+      node.classList.add('highlight-pulse');
+      node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+}
+
+function renderMap() {
+  const canvas = document.getElementById('canvas');
+  canvas.querySelectorAll('.map-element').forEach(n => n.remove());
+  canvas.appendChild(renderEntranceDOM());
+  mapLayout.elements.forEach(el => canvas.appendChild(createElementDOM(el)));
+  if (window.lucide) lucide.createIcons();
+}
+
+function renderEntranceDOM() {
+  const node = document.createElement('div');
+  node.className = 'map-element absolute border-2 border-gold-400 bg-gold-500/20 rounded-md text-gold-300 shadow-md pointer-events-none';
+  node.style.width = '10%'; node.style.height = '8%'; node.style.zIndex = '25';
+  node.innerHTML = `<div class="flex flex-col items-center justify-center gap-1 px-1"><i data-lucide="door-open" class="w-3 h-3"></i><span class="text-[8px] uppercase tracking-[0.1em] font-bold">INTRARE</span></div>`;
+  node.style.left = (mapLayout.entrance.x - 5) + '%'; node.style.top = (mapLayout.entrance.y - 4) + '%';
+  return node;
+}
+
+function createElementDOM(el) {
+  const def = ELEMENT_DEFS[el.type];
+  const node = document.createElement('div');
+  node.className = 'map-element absolute';
+  node.dataset.id = el.id; node.style.background = def.bg; node.style.border = `1.5px solid ${def.border}`; node.style.borderRadius = def.radius; node.style.color = '#EFEAE0'; node.style.zIndex = '20';
+
+  const isMappable = (el.type === 'guestTable' || el.type === 'prezidiu');
+  const displayLabel = isMappable && el.tableName ? el.tableName : el.label;
+  
+  node.innerHTML = `<div class="flex flex-col items-center gap-0.5 px-1 pointer-events-none"><i data-lucide="${def.icon}" class="w-3.5 h-3.5 opacity-60"></i><span class="text-[10px] font-semibold leading-tight">${escapeHtml(displayLabel)}</span></div>`;
+  node.style.left = (el.x - el.w / 2) + '%'; node.style.top = (el.y - el.h / 2) + '%'; node.style.width = el.w + '%'; node.style.height = el.h + '%';
+  return node;
+}
+
+function escapeHtml(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadDataFromCloud();
+  if (window.lucide) lucide.createIcons();
+});
+</script>
+</body>
+</html>
