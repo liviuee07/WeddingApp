@@ -7,7 +7,6 @@
 
 <!-- Tailwind CSS via CDN -->
 <script src="https://cdn.tailwindcss.com"></script>
-
 <!-- Lucide icons -->
 <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -16,23 +15,11 @@
     theme: {
       extend: {
         colors: {
-          ink: {
-            950: '#0F1424',
-            900: '#141A2E',
-            800: '#1B2340',
-            700: '#242D52',
-            600: '#333F6E',
-          },
-          gold: {
-            300: '#E4CD98',
-            400: '#D4B573',
-            500: '#C7A354',
-          },
+          ink: { 950: '#0F1424', 900: '#141A2E', 800: '#1B2340', 700: '#242D52', 600: '#333F6E' },
+          gold: { 300: '#E4CD98', 400: '#D4B573', 500: '#C7A354' },
+          rose: { 400: '#D89AA3', 500: '#C98A97' },
+          sage: { 400: '#9FBB98', 500: '#8FAE8B' },
           parchment: '#EFEAE0',
-        },
-        fontFamily: {
-          display: ['Arial', 'sans-serif'],
-          sans: ['Arial', 'sans-serif'],
         },
       },
     },
@@ -40,17 +27,12 @@
 </script>
 
 <style>
-  html, body {
-    font-family: Arial, sans-serif;
-    background-color: #0F1424;
-    color: #EFEAE0;
-  }
+  html, body { font-family: Arial, sans-serif; background-color: #0F1424; color: #EFEAE0; }
   body {
     background-image:
       radial-gradient(circle at 50% 0%, rgba(199,163,84,0.12), transparent 50%),
       radial-gradient(circle at 100% 100%, rgba(201,138,151,0.08), transparent 50%);
   }
-
   .blueprint-grid {
     background-color: #131A30;
     background-image:
@@ -58,26 +40,16 @@
       linear-gradient(90deg, rgba(228, 205, 152, 0.05) 1px, transparent 1px);
     background-size: 40px 40px;
   }
-
   .map-element {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    box-sizing: border-box;
-    transition: all 0.3s ease;
+    position: absolute; display: flex; align-items: center; justify-content: center;
+    text-align: center; box-sizing: border-box; transition: all 0.3s ease;
   }
-
   .highlight-pulse {
     background-color: rgba(199, 163, 84, 0.5) !important;
-    border: 3px solid #D4B573 !important;
-    color: #0F1424 !important;
-    box-shadow: 0 0 30px rgba(212, 181, 115, 0.9);
-    z-index: 50 !important;
+    border: 3px solid #D4B573 !important; color: #0F1424 !important;
+    box-shadow: 0 0 30px rgba(212, 181, 115, 0.9); z-index: 50 !important;
     animation: mapPulse 1.2s infinite alternate;
   }
-
   @keyframes mapPulse {
     from { transform: scale(1); }
     to { transform: scale(1.1); }
@@ -87,7 +59,6 @@
 
 <body class="min-h-screen flex flex-col justify-between p-4 sm:p-6">
 
-  <!-- HEADER ELEGANT -->
   <header class="text-center pt-4 pb-2">
     <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gold-500/10 border border-gold-500/30 mb-3">
       <i data-lucide="sparkles" class="w-6 h-6 text-gold-400"></i>
@@ -107,16 +78,24 @@
           class="w-full bg-ink-950 border border-ink-700 rounded-xl pl-11 pr-4 py-3.5 text-base text-parchment placeholder:text-parchment/30 focus:outline-none focus:border-gold-500 transition-colors" />
       </div>
 
-      <!-- LISTA REZULTATE DINAMICE -->
       <div id="resultsList" class="mt-3 divide-y divide-ink-700/60 max-h-48 overflow-auto hidden"></div>
     </div>
 
-    <!-- MESAJ CONFIRMARE LOC -->
-    <div id="welcomeCard" class="bg-gold-500/10 border border-gold-500/40 rounded-2xl p-5 text-center hidden">
+    <!-- MESAJ CONFIRMARE LOC + BUTON CHECK-IN -->
+    <div id="welcomeCard" class="bg-gold-500/10 border border-gold-500/40 rounded-2xl p-5 text-center hidden space-y-3">
       <p class="text-xs uppercase tracking-widest text-gold-300 font-semibold">Locul Tău Confirmat</p>
-      <h2 id="guestNameDisplay" class="text-xl font-bold text-parchment mt-1"></h2>
-      <div class="mt-3 inline-block bg-gold-500 text-ink-950 px-4 py-1.5 rounded-full font-bold text-sm tracking-wide shadow-md" id="tableDisplay"></div>
-      <p class="text-xs text-parchment/60 mt-2">Masa ta clipește mai jos pe schița sălii! 👇</p>
+      <h2 id="guestNameDisplay" class="text-xl font-bold text-parchment"></h2>
+      
+      <div class="inline-block bg-gold-500 text-ink-950 px-4 py-1.5 rounded-full font-bold text-sm tracking-wide shadow-md" id="tableDisplay"></div>
+
+      <!-- BUTON DE CHECK-IN MANUAL -->
+      <div class="pt-2">
+        <button id="checkInBtn" class="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-lg flex items-center justify-center gap-2 mx-auto">
+          <!-- Populat prin JS -->
+        </button>
+      </div>
+
+      <p class="text-xs text-parchment/60 pt-1">Masa ta clipește mai jos pe schiță! 👇</p>
     </div>
 
     <!-- SCHIȚA INTERACTIVĂ -->
@@ -144,6 +123,7 @@ const JSONBIN_MASTER_KEY = "$2a$10$oEJQ59Egu354AV0kzX.I4.XGOZCoTPtn58Q.GpFcNcw0A
 
 let guests = [];
 let mapLayout = { entrance: { x: 50, y: 88 }, elements: [] };
+let selectedGuest = null;
 
 const ELEMENT_DEFS = {
   danceFloor: { label: 'Ring de Dans', radius: '50%', bg: 'rgba(212,181,115,0.06)', border: 'rgba(212,181,115,0.4)', icon: 'disc' },
@@ -200,17 +180,55 @@ guestSearch.addEventListener('input', () => {
 });
 
 function selectGuest(phone) {
-  const g = guests.find(x => x.phone === phone);
-  if (!g) return;
+  selectedGuest = guests.find(x => x.phone === phone);
+  if (!selectedGuest) return;
 
   resultsList.classList.add('hidden');
-  guestSearch.value = g.name;
+  guestSearch.value = selectedGuest.name;
 
-  document.getElementById('guestNameDisplay').textContent = g.name;
-  document.getElementById('tableDisplay').textContent = g.table;
+  document.getElementById('guestNameDisplay').textContent = selectedGuest.name;
+  document.getElementById('tableDisplay').textContent = selectedGuest.table;
+  
+  updateCheckInButtonUI();
   document.getElementById('welcomeCard').classList.remove('hidden');
 
-  highlightTableOnMap(g.table);
+  highlightTableOnMap(selectedGuest.table);
+}
+
+function updateCheckInButtonUI() {
+  const btn = document.getElementById('checkInBtn');
+  if (selectedGuest.checkedIn) {
+    btn.className = "w-full sm:w-auto px-6 py-2.5 rounded-xl font-bold text-sm bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 flex items-center justify-center gap-2 mx-auto cursor-default";
+    btn.innerHTML = `<i data-lucide="check-circle-2" class="w-4 h-4"></i> Prezență Confirmată!`;
+    btn.onclick = null;
+  } else {
+    btn.className = "w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm bg-gold-500 hover:bg-gold-400 text-ink-950 flex items-center justify-center gap-2 mx-auto shadow-lg transition-transform active:scale-95 cursor-pointer";
+    btn.innerHTML = `<i data-lucide="map-pin" class="w-4 h-4"></i> Am ajuns la sală!`;
+    btn.onclick = confirmPresence;
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+async function confirmPresence() {
+  if (!selectedGuest) return;
+  
+  selectedGuest.checkedIn = true;
+  updateCheckInButtonUI();
+
+  // Salvare în JSONBin
+  try {
+    const payload = { guests: guests, layout: mapLayout };
+    await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_MASTER_KEY
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error("Eroare salvare check-in:", err);
+  }
 }
 
 function highlightTableOnMap(tableName) {
